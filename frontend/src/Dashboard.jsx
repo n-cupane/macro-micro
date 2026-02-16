@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "./api";
+import api, { eliminaDieta } from "./api";
 
 function Dashboard() {
   const navigate = useNavigate();
   const [diete, setDiete] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dietToDelete, setDietToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchDiete = async () => {
@@ -35,7 +37,27 @@ function Dashboard() {
   };
 
   const handleOpenDiet = (dietId) => {
-    navigate("/dieta/nuova", { state: { dietId } });
+    navigate(`/dieta/${dietId}`);
+  };
+
+  const handleDeleteClick = (dieta) => {
+    setDietToDelete(dieta);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!dietToDelete) {
+      return;
+    }
+    try {
+      setIsDeleting(true);
+      await eliminaDieta(dietToDelete.id);
+      setDiete((prev) => prev.filter((dieta) => dieta.id !== dietToDelete.id));
+      setDietToDelete(null);
+    } catch (_err) {
+      setError("Errore durante l'eliminazione della dieta.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -66,18 +88,57 @@ function Dashboard() {
               <article key={dieta.id} style={styles.card}>
                 <h2 style={styles.cardTitle}>{dieta.nome_dieta}</h2>
                 <p style={styles.cardMeta}>Creata: {dieta.data_creazione}</p>
-                <button
-                  type="button"
-                  onClick={() => handleOpenDiet(dieta.id)}
-                  style={styles.cardButton}
-                >
-                  Apri/Modifica
-                </button>
+                <div style={styles.cardActions}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDiet(dieta.id)}
+                    style={styles.cardButton}
+                  >
+                    Apri/Modifica
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteClick(dieta)}
+                    style={styles.deleteButton}
+                  >
+                    Elimina
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         )}
       </section>
+      {dietToDelete && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>Conferma eliminazione</h3>
+            <p style={styles.modalText}>
+              Vuoi eliminare definitivamente la dieta
+              {" "}
+              <strong>{dietToDelete.nome_dieta}</strong>?
+            </p>
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                style={styles.modalCancelButton}
+                onClick={() => setDietToDelete(null)}
+                disabled={isDeleting}
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                style={styles.modalDeleteButton}
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Eliminazione..." : "Elimina"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -88,12 +149,12 @@ const styles = {
     minHeight: "100vh",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    padding: "1rem",
+    alignItems: "flex-start",
+    padding: "2rem 1rem 1rem",
     boxSizing: "border-box",
   },
   container: {
-    width: "min(1100px, 100%)",
+    width: "min(1400px, 100%)",
     background: "#ffffff",
     borderRadius: "16px",
     border: "1px solid #dbe2ea",
@@ -142,8 +203,8 @@ const styles = {
   },
   grid: {
     display: "grid",
-    gap: "0.8rem",
-    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+    gap: "1rem",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
   },
   card: {
     border: "1px solid #d7dee8",
@@ -164,13 +225,73 @@ const styles = {
     fontSize: "0.9rem",
   },
   cardButton: {
-    justifySelf: "start",
     border: "none",
     borderRadius: "9px",
     padding: "0.55rem 0.85rem",
     background: "#14532d",
     color: "#fff",
     cursor: "pointer",
+  },
+  cardActions: {
+    display: "flex",
+    gap: "0.5rem",
+    flexWrap: "wrap",
+  },
+  deleteButton: {
+    border: "none",
+    borderRadius: "9px",
+    padding: "0.55rem 0.85rem",
+    background: "#b91c1c",
+    color: "#fff",
+    cursor: "pointer",
+  },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(2, 6, 23, 0.45)",
+    display: "grid",
+    placeItems: "center",
+    padding: "1rem",
+  },
+  modal: {
+    width: "min(460px, 100%)",
+    background: "#ffffff",
+    borderRadius: "14px",
+    border: "1px solid #dbe2ea",
+    padding: "1rem",
+    boxShadow: "0 20px 45px rgba(15, 23, 42, 0.22)",
+  },
+  modalTitle: {
+    margin: "0 0 0.5rem 0",
+    color: "#0f172a",
+  },
+  modalText: {
+    margin: 0,
+    color: "#334155",
+  },
+  modalActions: {
+    marginTop: "1rem",
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "0.5rem",
+  },
+  modalCancelButton: {
+    border: "1px solid #cbd5e1",
+    borderRadius: "9px",
+    padding: "0.5rem 0.85rem",
+    background: "#ffffff",
+    color: "#0f172a",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  modalDeleteButton: {
+    border: "none",
+    borderRadius: "9px",
+    padding: "0.5rem 0.85rem",
+    background: "#b91c1c",
+    color: "#ffffff",
+    cursor: "pointer",
+    fontWeight: 700,
   },
 };
 

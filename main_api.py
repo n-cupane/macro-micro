@@ -12,11 +12,14 @@ from calcolatore import calcola_macro_pasto
 from crud_manager import (
     aggiungi_alimento_a_pasto,
     aggiungi_pasto,
+    aggiorna_dieta_completa,
     cerca_alimenti,
     copia_giorno_dieta,
     crea_dieta,
     crea_dieta_completa,
     crea_utente,
+    elimina_dieta,
+    ottieni_dieta_completa,
     ottieni_diete_utente,
 )
 from database import setup_database
@@ -129,6 +132,19 @@ def crea_dieta_completa_endpoint(
     return {"status": "ok", "id": dieta_id, "message": "Dieta salvata con successo"}
 
 
+@app.put("/api/diete/{dieta_id}/completa")
+def aggiorna_dieta_completa_endpoint(
+    dieta_id: int,
+    payload: DietaCompletaCreate,
+    conn: sqlite3.Connection = Depends(get_db),
+    current_user: dict = Depends(get_utente_corrente),
+) -> dict:
+    updated = aggiorna_dieta_completa(conn, dieta_id, current_user["id"], payload)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dieta non trovata")
+    return {"status": "ok", "id": dieta_id, "message": "Dieta aggiornata con successo"}
+
+
 @app.get("/api/utenti/me/diete")
 def ottieni_diete_utente_endpoint(
     conn: sqlite3.Connection = Depends(get_db),
@@ -143,6 +159,30 @@ def ottieni_mie_diete_endpoint(
     current_user: dict = Depends(get_utente_corrente),
 ) -> list[dict]:
     return ottieni_diete_utente(conn, current_user["id"])
+
+
+@app.get("/api/diete/{dieta_id}/completa")
+def ottieni_dieta_completa_endpoint(
+    dieta_id: int,
+    conn: sqlite3.Connection = Depends(get_db),
+    current_user: dict = Depends(get_utente_corrente),
+) -> dict:
+    dieta = ottieni_dieta_completa(conn, dieta_id, current_user["id"])
+    if not dieta:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dieta non trovata")
+    return dieta
+
+
+@app.delete("/api/diete/{dieta_id}")
+def elimina_dieta_endpoint(
+    dieta_id: int,
+    conn: sqlite3.Connection = Depends(get_db),
+    current_user: dict = Depends(get_utente_corrente),
+) -> dict:
+    deleted = elimina_dieta(conn, dieta_id, current_user["id"])
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dieta non trovata")
+    return {"status": "ok"}
 
 
 @app.post("/api/pasti", status_code=201)

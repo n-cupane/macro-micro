@@ -28,4 +28,12 @@ export const salvaDietaCompleta = (payload) => {
   return api.post("/diete/completa", payload);
 };
 
+export const aggiornaDietaCompleta = (id, payload) => {
+  return api.put(`/diete/${id}/completa`, payload);
+};
+
+export const eliminaDieta = (id) => {
+  return api.delete(`/diete/${id}`);
+};
+
 export default api;

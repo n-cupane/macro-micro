@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import api, { salvaDietaCompleta } from "../api";
+import { useNavigate, useParams } from "react-router-dom";
+import api, { aggiornaDietaCompleta, salvaDietaCompleta } from "../api";
 import "./DietBuilder.css";
 
 const DAY_NAMES = [
@@ -61,6 +61,7 @@ function buildInitialWeekPlan() {
 
 function DietBuilder() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const [dietName, setDietName] = useState("Dieta Ricomposizione");
   const [activeDay, setActiveDay] = useState(0);
   const [weekPlan, setWeekPlan] = useState(buildInitialWeekPlan);
@@ -73,6 +74,9 @@ function DietBuilder() {
   const [selectedFood, setSelectedFood] = useState(null);
   const [searchError, setSearchError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(Boolean(id));
+  const [saveError, setSaveError] = useState("");
 
   const activeMeals = weekPlan[activeDay].meals;
 
@@ -153,6 +157,41 @@ function DietBuilder() {
       clearTimeout(debounceTimer);
     };
   }, [foodSearch, modalOpen]);
+
+  useEffect(() => {
+    if (!id) {
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadDieta = async () => {
+      try {
+        setIsLoading(true);
+        const response = await api.get(`/diete/${id}/completa`);
+        if (cancelled) {
+          return;
+        }
+        setDietName(response.data?.nome || "Dieta");
+        setWeekPlan(response.data?.week_plan || buildInitialWeekPlan());
+      } catch (_err) {
+        if (cancelled) {
+          return;
+        }
+        setDietName("Dieta Ricomposizione");
+        setWeekPlan(buildInitialWeekPlan());
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadDieta();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const toggleMeal = (mealId) => {
     setWeekPlan((prev) =>
@@ -274,6 +313,9 @@ function DietBuilder() {
   };
 
   const handleSalvaDieta = async () => {
+    setSaveError("");
+    setIsSaved(false);
+
     const pastiPayload = [];
     weekPlan.forEach((day, dayIndex) => {
       day.meals.forEach((meal) => {
@@ -299,15 +341,29 @@ function DietBuilder() {
 
     try {
       setIsSaving(true);
-      await salvaDietaCompleta(payload);
-      alert("Dieta salvata con successo");
-      navigate("/dashboard");
+      if (id) {
+        await aggiornaDietaCompleta(id, payload);
+      } else {
+        await salvaDietaCompleta(payload);
+      }
+      setIsSaved(true);
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 2000);
     } catch (_err) {
-      alert("Errore durante il salvataggio della dieta");
+      setSaveError("Errore durante il salvataggio della dieta");
     } finally {
       setIsSaving(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <section className="diet-builder">
+        <div className="diet-builder__loading">Caricamento in corso...</div>
+      </section>
+    );
+  }
 
   return (
     <section className="diet-builder">
@@ -319,9 +375,9 @@ function DietBuilder() {
               type="button"
               className="btn-primary btn-save-diet"
               onClick={handleSalvaDieta}
-              disabled={isSaving}
+              disabled={isSaving || isSaved}
             >
-              {isSaving ? "Salvataggio..." : "Salva Dieta"}
+              {isSaving ? "Salvataggio..." : isSaved ? "✅ Salvato!" : "Salva Dieta"}
             </button>
           </div>
           <input
@@ -338,6 +394,7 @@ function DietBuilder() {
           <span>Grassi: {dailyTotals.fat.toFixed(1)}g</span>
         </div>
       </header>
+      {saveError && <p className="diet-builder__save-error">{saveError}</p>}
 
       <nav className="diet-builder__tabs">
         {DAY_NAMES.map((day, index) => (

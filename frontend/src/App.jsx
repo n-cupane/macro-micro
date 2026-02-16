@@ -34,6 +34,14 @@ function App() {
         }
       />
       <Route
+        path="/dieta/:id"
+        element={
+          <ProtectedRoute>
+            <DietBuilder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="*"
         element={<Navigate to={token ? "/dashboard" : "/login"} replace />}
       />
