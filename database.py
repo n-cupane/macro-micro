@@ -1,8 +1,12 @@
 import sqlite3
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def setup_database(db_name='nutrizione.db'):
     """Crea le tabelle se non esistono e ritorna la connessione."""
     conn = sqlite3.connect(db_name)
+    conn.execute("PRAGMA foreign_keys = ON;")
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -29,6 +33,67 @@ def setup_database(db_name='nutrizione.db'):
             FOREIGN KEY (codice_alimento) REFERENCES alimenti (codice_alimento)
         )
         ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS utenti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT,
+            email TEXT UNIQUE,
+            password_hash TEXT,
+            ruolo TEXT DEFAULT 'user'
+        )
+    ''')
+
+    # Migrazione semplice per DB gia esistenti: aggiunge la colonna ruolo se manca.
+    cursor.execute("PRAGMA table_info(utenti)")
+    utenti_columns = {row[1] for row in cursor.fetchall()}
+    if "ruolo" not in utenti_columns:
+        cursor.execute("ALTER TABLE utenti ADD COLUMN ruolo TEXT DEFAULT 'user'")
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS diete (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            utente_id INTEGER,
+            nome_dieta TEXT,
+            data_creazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (utente_id) REFERENCES utenti (id)
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pasti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dieta_id INTEGER,
+            giorno_settimana INTEGER CHECK(giorno_settimana BETWEEN 1 AND 7),
+            nome_pasto TEXT,
+            ordine INTEGER,
+            FOREIGN KEY (dieta_id) REFERENCES diete (id)
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS dettaglio_pasti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pasto_id INTEGER,
+            codice_alimento TEXT,
+            quantita_grammi INTEGER,
+            FOREIGN KEY (pasto_id) REFERENCES pasti (id),
+            FOREIGN KEY (codice_alimento) REFERENCES alimenti (codice_alimento)
+        )
+    ''')
+
+    # Se non esistono utenti, crea l'admin di default per il primo accesso.
+    cursor.execute("SELECT COUNT(*) FROM utenti")
+    utenti_count = cursor.fetchone()[0]
+    if utenti_count == 0:
+        admin_password_hash = pwd_context.hash("admin123")
+        cursor.execute(
+            """
+            INSERT INTO utenti (nome, email, password_hash, ruolo)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("Admin", "admin@admin.com", admin_password_hash, "admin"),
+        )
     conn.commit()
     return conn
 
