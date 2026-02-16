@@ -249,6 +249,27 @@ function DietBuilder() {
     setSearchResults([]);
   };
 
+  const rimuoviAlimento = (pastoId, indiceAlimento) => {
+    setWeekPlan((prev) =>
+      prev.map((day, index) =>
+        index !== activeDay
+          ? day
+          : {
+              ...day,
+              meals: day.meals.map((meal) => {
+                if (meal.id !== pastoId) {
+                  return meal;
+                }
+                return {
+                  ...meal,
+                  foods: meal.foods.filter((_, foodIndex) => foodIndex !== indiceAlimento),
+                };
+              }),
+            },
+      ),
+    );
+  };
+
   return (
     <section className="diet-builder">
       <header className="diet-builder__header">
@@ -299,19 +320,31 @@ function DietBuilder() {
                   }
                 }}
               >
-                <input
-                  type="text"
-                  className="meal-accordion__name-input"
-                  value={meal.name}
-                  onChange={(e) => handleMealNameChange(meal.id, e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  placeholder="Nome pasto"
-                />
-                <span>
-                  {totals.kcal.toFixed(0)} kcal | P {totals.pro.toFixed(1)} | C{" "}
-                  {totals.carb.toFixed(1)} | G {totals.fat.toFixed(1)}
-                </span>
+                <div className="meal-accordion__head-content">
+                  <input
+                    type="text"
+                    className="meal-accordion__name-input"
+                    value={meal.name}
+                    onChange={(e) => handleMealNameChange(meal.id, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    placeholder="Nome pasto"
+                  />
+                  <div className="meal-accordion__macros">
+                    <span className="macro-pill macro-pill--kcal">
+                      Kcal {totals.kcal.toFixed(0)}
+                    </span>
+                    <span className="macro-pill macro-pill--pro">
+                      P {totals.pro.toFixed(1)}
+                    </span>
+                    <span className="macro-pill macro-pill--carb">
+                      C {totals.carb.toFixed(1)}
+                    </span>
+                    <span className="macro-pill macro-pill--fat">
+                      G {totals.fat.toFixed(1)}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {meal.open && (
@@ -319,10 +352,28 @@ function DietBuilder() {
                   {meal.foods.length === 0 ? (
                     <p className="muted">Nessun alimento inserito.</p>
                   ) : (
-                    <ul>
-                      {meal.foods.map((food) => (
-                        <li key={food.id}>
-                          {food.name} - {food.grams}g
+                    <ul className="foods-list">
+                      {meal.foods.map((food, foodIndex) => (
+                        <li key={food.id} className="food-card">
+                          <div className="food-card__left">
+                            <strong>{food.name}</strong>
+                            <span>Quantità: {food.grams} g</span>
+                          </div>
+                          <div className="food-card__center">
+                            <span>Kcal {food.kcal.toFixed(0)}</span>
+                            <span>P {food.pro.toFixed(1)}</span>
+                            <span>C {food.carb.toFixed(1)}</span>
+                            <span>G {food.fat.toFixed(1)}</span>
+                          </div>
+                          <div className="food-card__right">
+                            <button
+                              type="button"
+                              className="btn-delete"
+                              onClick={() => rimuoviAlimento(meal.id, foodIndex)}
+                            >
+                              Elimina
+                            </button>
+                          </div>
                         </li>
                       ))}
                     </ul>
