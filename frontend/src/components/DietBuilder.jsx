@@ -12,23 +12,25 @@ const DAY_NAMES = [
   "Domenica",
 ];
 
-const FOOD_LIBRARY = {
-  pollo: { kcal: 165, pro: 31, carb: 0, fat: 3.6 },
-  riso: { kcal: 130, pro: 2.7, carb: 28, fat: 0.3 },
-  avena: { kcal: 389, pro: 16.9, carb: 66.3, fat: 6.9 },
-  banana: { kcal: 89, pro: 1.1, carb: 22.8, fat: 0.3 },
-  yogurt: { kcal: 59, pro: 10, carb: 3.6, fat: 0.4 },
-  salmone: { kcal: 208, pro: 20, carb: 0, fat: 13 },
-};
+function toFloatValue(value) {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+  const raw = String(value).trim().toLowerCase().replace(",", ".");
+  if (!raw || raw === "tr") {
+    return 0;
+  }
+  const parsed = Number(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 
-function computeFoodMacros(foodName, grams) {
-  const normalized = foodName.trim().toLowerCase();
-  const foundKey = Object.keys(FOOD_LIBRARY).find((key) =>
-    normalized.includes(key),
-  );
-  const base = foundKey
-    ? FOOD_LIBRARY[foundKey]
-    : { kcal: 120, pro: 8, carb: 12, fat: 4 };
+function computeFoodMacros(food, grams) {
+  const base = {
+    kcal: toFloatValue(food.kcal),
+    pro: toFloatValue(food.proteine),
+    carb: toFloatValue(food.carboidrati),
+    fat: toFloatValue(food.grassi),
+  };
   const ratio = Number(grams) / 100;
   return {
     kcal: base.kcal * ratio,
@@ -36,10 +38,6 @@ function computeFoodMacros(foodName, grams) {
     carb: base.carb * ratio,
     fat: base.fat * ratio,
   };
-}
-
-function getBaseMacrosByFoodName(foodName) {
-  return computeFoodMacros(foodName, 100);
 }
 
 function mealTotals(meal) {
@@ -94,14 +92,19 @@ function DietBuilder() {
     if (!selectedFood || Number(foodGrams) <= 0) {
       return { kcal: 0, pro: 0, carb: 0, fat: 0 };
     }
-    return computeFoodMacros(selectedFood.nome, Number(foodGrams));
+    return computeFoodMacros(selectedFood, Number(foodGrams));
   }, [selectedFood, foodGrams]);
 
   const selectedBaseMacros = useMemo(() => {
     if (!selectedFood) {
       return null;
     }
-    return getBaseMacrosByFoodName(selectedFood.nome);
+    return {
+      kcal: toFloatValue(selectedFood.kcal),
+      pro: toFloatValue(selectedFood.proteine),
+      carb: toFloatValue(selectedFood.carboidrati),
+      fat: toFloatValue(selectedFood.grassi),
+    };
   }, [selectedFood]);
 
   useEffect(() => {
@@ -214,7 +217,7 @@ function DietBuilder() {
       return;
     }
 
-    const macros = computeFoodMacros(selectedFood.nome, Number(foodGrams));
+    const macros = computeFoodMacros(selectedFood, Number(foodGrams));
     const newFood = {
       id: Math.random().toString(36).slice(2),
       codice_alimento: selectedFood.codice_alimento,

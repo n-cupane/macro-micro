@@ -1,6 +1,19 @@
 import sqlite3
 
 
+def _to_float_value(value: object) -> float:
+    """Converte un valore nutrizionale testuale in float gestendo null e 'tr'."""
+    if value is None:
+        return 0.0
+    raw = str(value).strip().lower().replace(",", ".")
+    if not raw or raw == "tr":
+        return 0.0
+    try:
+        return float(raw)
+    except ValueError:
+        return 0.0
+
+
 def crea_utente(conn: sqlite3.Connection, nome: str, email: str, password_hash: str) -> int:
     """Inserisce un utente e ritorna l'id creato."""
     cursor = conn.cursor()
@@ -168,22 +181,34 @@ def cerca_alimenti(conn: sqlite3.Connection, keyword: str) -> list[dict]:
     pattern = f"%{keyword.strip()}%"
     cursor.execute(
         """
-        SELECT codice_alimento, nome, categoria
-        FROM alimenti
-        WHERE nome LIKE ? COLLATE NOCASE
-           OR categoria LIKE ? COLLATE NOCASE
-        ORDER BY nome ASC
+        SELECT a.codice_alimento, a.nome, a.categoria,
+               MAX(CASE WHEN v.nutriente = 'Energia (kcal)' THEN v.valore_100g END) AS kcal,
+               MAX(CASE WHEN v.nutriente = 'Proteine (g)' THEN v.valore_100g END) AS proteine,
+               MAX(CASE WHEN v.nutriente = 'Carboidrati disponibili (g)' THEN v.valore_100g END) AS carboidrati,
+               MAX(CASE WHEN v.nutriente = 'Lipidi (g)' THEN v.valore_100g END) AS grassi
+        FROM alimenti a
+        LEFT JOIN valori_nutrizionali v ON a.codice_alimento = v.codice_alimento
+        WHERE a.nome LIKE ? OR a.categoria LIKE ?
+        GROUP BY a.codice_alimento, a.nome, a.categoria
+        ORDER BY a.nome ASC
         LIMIT 20
         """,
         (pattern, pattern),
     )
     rows = cursor.fetchall()
 
-    return [
-        {
-            "codice_alimento": row[0],
-            "nome": row[1],
-            "categoria": row[2],
-        }
-        for row in rows
-    ]
+    results = []
+    for row in rows:
+        results.append(
+            {
+                "codice_alimento": row[0],
+                "nome": row[1],
+                "categoria": row[2],
+                "kcal": _to_float_value(row[3]),
+                "proteine": _to_float_value(row[4]),
+                "carboidrati": _to_float_value(row[5]),
+                "grassi": _to_float_value(row[6]),
+            }
+        )
+
+    return results
