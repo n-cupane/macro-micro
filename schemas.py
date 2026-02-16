@@ -33,6 +33,7 @@ class AlimentoBulkCreate(BaseModel):
 class PastoBulkCreate(BaseModel):
     nome_pasto: str
     giorno_settimana: int
+    ordine: int
     alimenti: List[AlimentoBulkCreate]
 
 

@@ -62,7 +62,10 @@ def crea_dieta_completa(
         )
         dieta_id = cursor.lastrowid
 
-        for ordine, pasto in enumerate(dati_dieta.pasti, start=1):
+        for index, pasto in enumerate(dati_dieta.pasti, start=1):
+            ordine = int(pasto.ordine or 0) if pasto.ordine is not None else 0
+            if ordine <= 0:
+                ordine = index
             cursor.execute(
                 """
                 INSERT INTO pasti (dieta_id, giorno_settimana, nome_pasto, ordine)
@@ -142,7 +145,10 @@ def aggiorna_dieta_completa(
             (dieta_id, utente_id),
         )
 
-        for ordine, pasto in enumerate(dati_dieta.pasti, start=1):
+        for index, pasto in enumerate(dati_dieta.pasti, start=1):
+            ordine = int(pasto.ordine or 0) if pasto.ordine is not None else 0
+            if ordine <= 0:
+                ordine = index
             cursor.execute(
                 """
                 INSERT INTO pasti (dieta_id, giorno_settimana, nome_pasto, ordine)
@@ -176,16 +182,24 @@ def elimina_dieta(conn: sqlite3.Connection, dieta_id: int, utente_id: int) -> bo
         cursor.execute(
             """
             DELETE FROM dettaglio_pasti
-            WHERE pasto_id IN (SELECT id FROM pasti WHERE dieta_id = ?)
+            WHERE pasto_id IN (
+                SELECT p.id
+                FROM pasti p
+                WHERE p.dieta_id IN (
+                    SELECT d.id FROM diete d WHERE d.id = ? AND d.utente_id = ?
+                )
+            )
             """,
-            (dieta_id,),
+            (dieta_id, utente_id),
         )
         cursor.execute(
             """
             DELETE FROM pasti
-            WHERE dieta_id = ?
+            WHERE dieta_id IN (
+                SELECT d.id FROM diete d WHERE d.id = ? AND d.utente_id = ?
+            )
             """,
-            (dieta_id,),
+            (dieta_id, utente_id),
         )
         cursor.execute(
             """
@@ -282,6 +296,7 @@ def ottieni_dieta_completa(conn: sqlite3.Connection, dieta_id: int, utente_id: i
                 {
                     "id": pasto_id,
                     "name": nome_pasto,
+                    "ordine": _ordine,
                     "open": True,
                     "foods": foods,
                 }

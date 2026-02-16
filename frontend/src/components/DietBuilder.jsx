@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useNavigate, useParams } from "react-router-dom";
 import api, { aggiornaDietaCompleta, salvaDietaCompleta } from "../api";
 import "./DietBuilder.css";
 
 const DAY_NAMES = [
-  "Lunedì",
-  "Martedì",
-  "Mercoledì",
-  "Giovedì",
-  "Venerdì",
+  "Lunedi",
+  "Martedi",
+  "Mercoledi",
+  "Giovedi",
+  "Venerdi",
   "Sabato",
   "Domenica",
 ];
@@ -54,14 +55,13 @@ function mealTotals(meal) {
 }
 
 function buildInitialWeekPlan() {
-  return DAY_NAMES.map(() => ({
-    meals: [],
-  }));
+  return DAY_NAMES.map(() => ({ meals: [] }));
 }
 
 function DietBuilder() {
   const navigate = useNavigate();
   const { id } = useParams();
+
   const [dietName, setDietName] = useState("Dieta Ricomposizione");
   const [activeDay, setActiveDay] = useState(0);
   const [weekPlan, setWeekPlan] = useState(buildInitialWeekPlan);
@@ -118,7 +118,6 @@ function DietBuilder() {
     if (!modalOpen) {
       return;
     }
-
     const query = foodSearch.trim();
     if (query.length < 2) {
       setSearchResults([]);
@@ -132,19 +131,15 @@ function DietBuilder() {
       setIsSearching(true);
       setSearchError("");
       try {
-        const response = await api.get("/alimenti/search", {
-          params: { q: query },
-        });
-        if (cancelled) {
-          return;
+        const response = await api.get("/alimenti/search", { params: { q: query } });
+        if (!cancelled) {
+          setSearchResults(response.data || []);
         }
-        setSearchResults(response.data || []);
       } catch (_err) {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setSearchResults([]);
+          setSearchError("Errore durante la ricerca alimenti.");
         }
-        setSearchResults([]);
-        setSearchError("Errore durante la ricerca alimenti.");
       } finally {
         if (!cancelled) {
           setIsSearching(false);
@@ -169,17 +164,15 @@ function DietBuilder() {
       try {
         setIsLoading(true);
         const response = await api.get(`/diete/${id}/completa`);
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setDietName(response.data?.nome || "Dieta");
+          setWeekPlan(response.data?.week_plan || buildInitialWeekPlan());
         }
-        setDietName(response.data?.nome || "Dieta");
-        setWeekPlan(response.data?.week_plan || buildInitialWeekPlan());
       } catch (_err) {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setDietName("Dieta Ricomposizione");
+          setWeekPlan(buildInitialWeekPlan());
         }
-        setDietName("Dieta Ricomposizione");
-        setWeekPlan(buildInitialWeekPlan());
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -258,7 +251,6 @@ function DietBuilder() {
     if (!selectedFood || Number(foodGrams) <= 0 || !targetMealId) {
       return;
     }
-
     const macros = computeFoodMacros(selectedFood, Number(foodGrams));
     const newFood = {
       id: Math.random().toString(36).slice(2),
@@ -298,15 +290,39 @@ function DietBuilder() {
           ? day
           : {
               ...day,
-              meals: day.meals.map((meal) => {
-                if (meal.id !== pastoId) {
-                  return meal;
-                }
-                return {
-                  ...meal,
-                  foods: meal.foods.filter((_, foodIndex) => foodIndex !== indiceAlimento),
-                };
-              }),
+              meals: day.meals.map((meal) =>
+                meal.id !== pastoId
+                  ? meal
+                  : {
+                      ...meal,
+                      foods: meal.foods.filter((_, foodIndex) => foodIndex !== indiceAlimento),
+                    },
+              ),
+            },
+      ),
+    );
+  };
+
+  const handleDragEnd = (result) => {
+    const { source, destination } = result;
+    if (!destination) {
+      return;
+    }
+    if (source.index === destination.index) {
+      return;
+    }
+
+    const reorderedMeals = Array.from(activeMeals);
+    const [movedItem] = reorderedMeals.splice(source.index, 1);
+    reorderedMeals.splice(destination.index, 0, movedItem);
+
+    setWeekPlan((prev) =>
+      prev.map((day, index) =>
+        index !== activeDay
+          ? day
+          : {
+              ...day,
+              meals: reorderedMeals,
             },
       ),
     );
@@ -318,7 +334,7 @@ function DietBuilder() {
 
     const pastiPayload = [];
     weekPlan.forEach((day, dayIndex) => {
-      day.meals.forEach((meal) => {
+      day.meals.forEach((meal, mealIndex) => {
         const alimenti = meal.foods
           .filter((food) => food.codice_alimento && Number(food.grams) > 0)
           .map((food) => ({
@@ -329,15 +345,13 @@ function DietBuilder() {
         pastiPayload.push({
           nome_pasto: meal.name?.trim() || "Pasto",
           giorno_settimana: dayIndex + 1,
+          ordine: mealIndex + 1,
           alimenti,
         });
       });
     });
 
-    const payload = {
-      nome: dietName.trim() || "Nuova Dieta",
-      pasti: pastiPayload,
-    };
+    const payload = { nome: dietName.trim() || "Nuova Dieta", pasti: pastiPayload };
 
     try {
       setIsSaving(true);
@@ -347,9 +361,7 @@ function DietBuilder() {
         await salvaDietaCompleta(payload);
       }
       setIsSaved(true);
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 2000);
+      setTimeout(() => navigate("/dashboard"), 2000);
     } catch (_err) {
       setSaveError("Errore durante il salvataggio della dieta");
     } finally {
@@ -377,7 +389,7 @@ function DietBuilder() {
               onClick={handleSalvaDieta}
               disabled={isSaving || isSaved}
             >
-              {isSaving ? "Salvataggio..." : isSaved ? "✅ Salvato!" : "Salva Dieta"}
+              {isSaving ? "Salvataggio..." : isSaved ? "Saved!" : "Salva Dieta"}
             </button>
           </div>
           <input
@@ -410,93 +422,125 @@ function DietBuilder() {
       </nav>
 
       <div className="diet-builder__body">
-        {activeMeals.map((meal) => {
-          const totals = mealTotals(meal);
-          return (
-            <article className="meal-accordion" key={meal.id}>
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="meals-list">
+            {(droppableProvided) => (
               <div
-                className="meal-accordion__head"
-                role="button"
-                tabIndex={0}
-                onClick={() => toggleMeal(meal.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    toggleMeal(meal.id);
-                  }
-                }}
+                className="meals-droppable"
+                ref={droppableProvided.innerRef}
+                {...droppableProvided.droppableProps}
               >
-                <div className="meal-accordion__head-content">
-                  <input
-                    type="text"
-                    className="meal-accordion__name-input"
-                    value={meal.name}
-                    onChange={(e) => handleMealNameChange(meal.id, e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    placeholder="Nome pasto"
-                  />
-                  <div className="meal-accordion__macros">
-                    <span className="macro-pill macro-pill--kcal">
-                      Kcal {totals.kcal.toFixed(0)}
-                    </span>
-                    <span className="macro-pill macro-pill--pro">
-                      P {totals.pro.toFixed(1)}
-                    </span>
-                    <span className="macro-pill macro-pill--carb">
-                      C {totals.carb.toFixed(1)}
-                    </span>
-                    <span className="macro-pill macro-pill--fat">
-                      G {totals.fat.toFixed(1)}
-                    </span>
-                  </div>
-                </div>
+                {activeMeals.map((meal, index) => {
+                  const totals = mealTotals(meal);
+                  return (
+                    <Draggable key={meal.id} draggableId={String(meal.id)} index={index}>
+                      {(draggableProvided) => (
+                        <article
+                          className="meal-accordion"
+                          ref={draggableProvided.innerRef}
+                          {...draggableProvided.draggableProps}
+                        >
+                          <div
+                            className="meal-accordion__head"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => toggleMeal(meal.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                toggleMeal(meal.id);
+                              }
+                            }}
+                          >
+                            <div className="meal-accordion__head-content">
+                              <div className="meal-accordion__title-group">
+                                <span
+                                  className="meal-drag-handle"
+                                  {...draggableProvided.dragHandleProps}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  title="Trascina per riordinare"
+                                >
+                                  ⋮⋮
+                                </span>
+                                <input
+                                  type="text"
+                                  className="meal-accordion__name-input"
+                                  value={meal.name}
+                                  onChange={(e) => handleMealNameChange(meal.id, e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  placeholder="Nome pasto"
+                                />
+                              </div>
+                              <div className="meal-accordion__macros">
+                                <span className="macro-pill macro-pill--kcal">
+                                  Kcal {totals.kcal.toFixed(0)}
+                                </span>
+                                <span className="macro-pill macro-pill--pro">
+                                  P {totals.pro.toFixed(1)}
+                                </span>
+                                <span className="macro-pill macro-pill--carb">
+                                  C {totals.carb.toFixed(1)}
+                                </span>
+                                <span className="macro-pill macro-pill--fat">
+                                  G {totals.fat.toFixed(1)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {meal.open && (
+                            <div className="meal-accordion__content">
+                              {meal.foods.length === 0 ? (
+                                <p className="muted">Nessun alimento inserito.</p>
+                              ) : (
+                                <ul className="foods-list">
+                                  {meal.foods.map((food, foodIndex) => (
+                                    <li key={food.id} className="food-card">
+                                      <div className="food-card__left">
+                                        <strong>{food.name}</strong>
+                                        <span>Quantita: {food.grams} g</span>
+                                      </div>
+                                      <div className="food-card__center">
+                                        <span>Kcal {food.kcal.toFixed(0)}</span>
+                                        <span>P {food.pro.toFixed(1)}</span>
+                                        <span>C {food.carb.toFixed(1)}</span>
+                                        <span>G {food.fat.toFixed(1)}</span>
+                                      </div>
+                                      <div className="food-card__right">
+                                        <button
+                                          type="button"
+                                          className="btn-delete"
+                                          onClick={() => rimuoviAlimento(meal.id, foodIndex)}
+                                        >
+                                          Elimina
+                                        </button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => openAddFoodModal(meal.id)}
+                              >
+                                Aggiungi Alimento
+                              </button>
+                            </div>
+                          )}
+                        </article>
+                      )}
+                    </Draggable>
+                  );
+                })}
+                {droppableProvided.placeholder}
               </div>
-
-              {meal.open && (
-                <div className="meal-accordion__content">
-                  {meal.foods.length === 0 ? (
-                    <p className="muted">Nessun alimento inserito.</p>
-                  ) : (
-                    <ul className="foods-list">
-                      {meal.foods.map((food, foodIndex) => (
-                        <li key={food.id} className="food-card">
-                          <div className="food-card__left">
-                            <strong>{food.name}</strong>
-                            <span>Quantità: {food.grams} g</span>
-                          </div>
-                          <div className="food-card__center">
-                            <span>Kcal {food.kcal.toFixed(0)}</span>
-                            <span>P {food.pro.toFixed(1)}</span>
-                            <span>C {food.carb.toFixed(1)}</span>
-                            <span>G {food.fat.toFixed(1)}</span>
-                          </div>
-                          <div className="food-card__right">
-                            <button
-                              type="button"
-                              className="btn-delete"
-                              onClick={() => rimuoviAlimento(meal.id, foodIndex)}
-                            >
-                              Elimina
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => openAddFoodModal(meal.id)}
-                  >
-                    Aggiungi Alimento
-                  </button>
-                </div>
-              )}
-            </article>
-          );
-        })}
+            )}
+          </Droppable>
+        </DragDropContext>
 
         <button type="button" className="btn-primary" onClick={handleAddMeal}>
           Aggiungi Pasto
@@ -544,6 +588,7 @@ function DietBuilder() {
                 </p>
               </div>
             )}
+
             <input
               type="number"
               min="1"
@@ -551,6 +596,7 @@ function DietBuilder() {
               value={foodGrams}
               onChange={(e) => setFoodGrams(e.target.value)}
             />
+
             <div className="nutrition-preview">
               <p className="nutrition-preview__title">Anteprima porzione</p>
               <p>
@@ -558,6 +604,7 @@ function DietBuilder() {
                 Carbo {previewMacros.carb.toFixed(1)}g | Grassi {previewMacros.fat.toFixed(1)}g
               </p>
             </div>
+
             <div className="modal__actions">
               <button
                 type="button"

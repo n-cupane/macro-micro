@@ -102,6 +102,10 @@
   padding: 1rem 1.25rem 1.25rem;
 }
 
+.meals-droppable {
+  min-height: 8px;
+}
+
 .meal-accordion {
   border: 1px solid #d7dee9;
   border-radius: 12px;
@@ -123,6 +127,28 @@
   gap: 0.5rem;
   width: 100%;
   overflow: hidden;
+}
+
+.meal-accordion__title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.meal-drag-handle {
+  cursor: grab;
+  user-select: none;
+  color: #64748b;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0.2rem;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.meal-drag-handle:active {
+  cursor: grabbing;
 }
 
 .meal-accordion__macros {
