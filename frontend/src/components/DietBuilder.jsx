@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "../api";
+import { useNavigate } from "react-router-dom";
+import api, { salvaDietaCompleta } from "../api";
 import "./DietBuilder.css";
 
 const DAY_NAMES = [
@@ -59,6 +60,7 @@ function buildInitialWeekPlan() {
 }
 
 function DietBuilder() {
+  const navigate = useNavigate();
   const [dietName, setDietName] = useState("Dieta Ricomposizione");
   const [activeDay, setActiveDay] = useState(0);
   const [weekPlan, setWeekPlan] = useState(buildInitialWeekPlan);
@@ -70,6 +72,7 @@ function DietBuilder() {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedFood, setSelectedFood] = useState(null);
   const [searchError, setSearchError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const activeMeals = weekPlan[activeDay].meals;
 
@@ -270,11 +273,57 @@ function DietBuilder() {
     );
   };
 
+  const handleSalvaDieta = async () => {
+    const pastiPayload = [];
+    weekPlan.forEach((day, dayIndex) => {
+      day.meals.forEach((meal) => {
+        const alimenti = meal.foods
+          .filter((food) => food.codice_alimento && Number(food.grams) > 0)
+          .map((food) => ({
+            codice_alimento: food.codice_alimento,
+            grammi: Math.round(Number(food.grams)),
+          }));
+
+        pastiPayload.push({
+          nome_pasto: meal.name?.trim() || "Pasto",
+          giorno_settimana: dayIndex + 1,
+          alimenti,
+        });
+      });
+    });
+
+    const payload = {
+      nome: dietName.trim() || "Nuova Dieta",
+      pasti: pastiPayload,
+    };
+
+    try {
+      setIsSaving(true);
+      await salvaDietaCompleta(payload);
+      alert("Dieta salvata con successo");
+      navigate("/dashboard");
+    } catch (_err) {
+      alert("Errore durante il salvataggio della dieta");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <section className="diet-builder">
       <header className="diet-builder__header">
         <div className="diet-builder__name">
-          <label htmlFor="diet-name">Nome della Dieta</label>
+          <div className="diet-builder__title-row">
+            <label htmlFor="diet-name">Nome della Dieta</label>
+            <button
+              type="button"
+              className="btn-primary btn-save-diet"
+              onClick={handleSalvaDieta}
+              disabled={isSaving}
+            >
+              {isSaving ? "Salvataggio..." : "Salva Dieta"}
+            </button>
+          </div>
           <input
             id="diet-name"
             value={dietName}

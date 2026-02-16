@@ -24,4 +24,8 @@ export const loginUser = (email, password) => {
   });
 };
 
+export const salvaDietaCompleta = (payload) => {
+  return api.post("/diete/completa", payload);
+};
+
 export default api;

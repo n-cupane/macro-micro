@@ -1,5 +1,7 @@
 import sqlite3
 
+from schemas import DietaCompletaCreate
+
 
 def _to_float_value(value: object) -> float:
     """Converte un valore nutrizionale testuale in float gestendo null e 'tr'."""
@@ -40,6 +42,50 @@ def crea_dieta(conn: sqlite3.Connection, utente_id: int, nome_dieta: str) -> int
     )
     conn.commit()
     return cursor.lastrowid
+
+
+def crea_dieta_completa(
+    conn: sqlite3.Connection,
+    utente_id: int,
+    dati_dieta: DietaCompletaCreate,
+) -> int:
+    """Crea dieta, pasti e alimenti in transazione singola."""
+    cursor = conn.cursor()
+    cursor.execute("BEGIN")
+    try:
+        cursor.execute(
+            """
+            INSERT INTO diete (utente_id, nome_dieta)
+            VALUES (?, ?)
+            """,
+            (utente_id, dati_dieta.nome),
+        )
+        dieta_id = cursor.lastrowid
+
+        for ordine, pasto in enumerate(dati_dieta.pasti, start=1):
+            cursor.execute(
+                """
+                INSERT INTO pasti (dieta_id, giorno_settimana, nome_pasto, ordine)
+                VALUES (?, ?, ?, ?)
+                """,
+                (dieta_id, pasto.giorno_settimana, pasto.nome_pasto, ordine),
+            )
+            pasto_id = cursor.lastrowid
+
+            for alimento in pasto.alimenti:
+                cursor.execute(
+                    """
+                    INSERT INTO dettaglio_pasti (pasto_id, codice_alimento, quantita_grammi)
+                    VALUES (?, ?, ?)
+                    """,
+                    (pasto_id, alimento.codice_alimento, alimento.grammi),
+                )
+
+        conn.commit()
+        return dieta_id
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def ottieni_diete_utente(conn: sqlite3.Connection, utente_id: int) -> list[dict]:

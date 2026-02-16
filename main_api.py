@@ -15,12 +15,13 @@ from crud_manager import (
     cerca_alimenti,
     copia_giorno_dieta,
     crea_dieta,
+    crea_dieta_completa,
     crea_utente,
     ottieni_diete_utente,
 )
 from database import setup_database
 from security import ALGORITHM, SECRET_KEY, crea_access_token, hash_password, verify_password
-from schemas import AlimentoPastoCreate, DietaCreate, PastoCreate, UtenteCreate
+from schemas import AlimentoPastoCreate, DietaCompletaCreate, DietaCreate, PastoCreate, UtenteCreate
 
 app = FastAPI(title="Macro Micro API")
 app.add_middleware(
@@ -116,6 +117,16 @@ def crea_dieta_endpoint(
 ) -> dict:
     dieta_id = crea_dieta(conn, current_user["id"], payload.nome_dieta)
     return {"id": dieta_id}
+
+
+@app.post("/api/diete/completa", status_code=201)
+def crea_dieta_completa_endpoint(
+    payload: DietaCompletaCreate,
+    conn: sqlite3.Connection = Depends(get_db),
+    current_user: dict = Depends(get_utente_corrente),
+) -> dict:
+    dieta_id = crea_dieta_completa(conn, current_user["id"], payload)
+    return {"status": "ok", "id": dieta_id, "message": "Dieta salvata con successo"}
 
 
 @app.get("/api/utenti/me/diete")
