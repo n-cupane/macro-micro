@@ -40,6 +40,7 @@ def setup_database(db_name='nutrizione.db'):
             nome TEXT,
             email TEXT UNIQUE,
             password_hash TEXT,
+            sesso TEXT NOT NULL DEFAULT 'M',
             ruolo TEXT DEFAULT 'user'
         )
     ''')
@@ -49,6 +50,8 @@ def setup_database(db_name='nutrizione.db'):
     utenti_columns = {row[1] for row in cursor.fetchall()}
     if "ruolo" not in utenti_columns:
         cursor.execute("ALTER TABLE utenti ADD COLUMN ruolo TEXT DEFAULT 'user'")
+    if "sesso" not in utenti_columns:
+        cursor.execute("ALTER TABLE utenti ADD COLUMN sesso TEXT NOT NULL DEFAULT 'M'")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS diete (

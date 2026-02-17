@@ -24,6 +24,7 @@ from crud_manager import (
     ottieni_diete_utente,
 )
 from database import setup_database
+from nutritional_targets import load_larn_data
 from security import ALGORITHM, SECRET_KEY, crea_access_token, hash_password, verify_password
 from schemas import (
     AlimentoPastoCreate,
@@ -48,6 +49,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
 class CopiaGiornoRequest(BaseModel):
     giorno_origine: int
     giorno_destinazione: int
+
+
+@app.on_event("startup")
+def startup_load_targets() -> None:
+    load_larn_data()
 
 
 def get_db() -> Generator[sqlite3.Connection, None, None]:
@@ -81,7 +87,7 @@ def get_utente_corrente(
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, nome, email, ruolo
+        SELECT id, nome, email, ruolo, sesso
         FROM utenti
         WHERE id = ?
         """,
@@ -96,6 +102,7 @@ def get_utente_corrente(
         "nome": user[1],
         "email": user[2],
         "ruolo": user[3],
+        "sesso": user[4],
     }
 
 
@@ -116,7 +123,7 @@ def crea_utente_endpoint(
     admin_user: dict = Depends(get_utente_admin),
 ) -> dict:
     password_hash = hash_password(payload.password)
-    utente_id = crea_utente(conn, payload.nome, payload.email, password_hash)
+    utente_id = crea_utente(conn, payload.nome, payload.email, password_hash, payload.sesso)
     return {"id": utente_id}
 
 
@@ -261,9 +268,8 @@ def nutrizione_giornaliera_micro_endpoint(
     payload: CalcoloMicroRequest,
     conn: sqlite3.Connection = Depends(get_db),
     current_user: dict = Depends(get_utente_corrente),
-) -> dict[str, float]:
-    _ = current_user
-    return calcola_micronutrienti_lista(conn, payload.alimenti)
+) -> dict[str, dict[str, float]]:
+    return calcola_micronutrienti_lista(conn, payload.alimenti, current_user["sesso"])
 
 
 @app.post("/api/token")
@@ -274,7 +280,7 @@ def login_for_access_token(
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, email, password_hash, ruolo
+        SELECT id, email, password_hash, ruolo, sesso
         FROM utenti
         WHERE email = ?
         """,
@@ -290,7 +296,7 @@ def login_for_access_token(
         )
 
     access_token = crea_access_token(
-        data={"sub": str(user[0]), "email": user[1], "ruolo": user[3]}
+        data={"sub": str(user[0]), "email": user[1], "ruolo": user[3], "sesso": user[4]}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 

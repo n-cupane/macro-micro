@@ -502,6 +502,13 @@
   gap: 0.35rem;
 }
 
+.diet-builder__micro-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
 .diet-builder__micro-name {
   color: #334155;
   font-size: 0.92rem;
@@ -510,6 +517,27 @@
 .diet-builder__micro-value {
   color: #0f172a;
   font-size: 1rem;
+  white-space: nowrap;
+}
+
+.diet-builder__micro-progress {
+  width: 100%;
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.diet-builder__micro-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 250ms ease;
+}
+
+.diet-builder__micro-percent {
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 @keyframes diet-builder-spin {

@@ -1,5 +1,6 @@
 import sqlite3
 
+from nutritional_targets import LARN_DICT
 from schemas import DietaCompletaCreate
 
 
@@ -16,15 +17,21 @@ def _to_float_value(value: object) -> float:
         return 0.0
 
 
-def crea_utente(conn: sqlite3.Connection, nome: str, email: str, password_hash: str) -> int:
+def crea_utente(
+    conn: sqlite3.Connection,
+    nome: str,
+    email: str,
+    password_hash: str,
+    sesso: str,
+) -> int:
     """Inserisce un utente e ritorna l'id creato."""
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO utenti (nome, email, password_hash)
-        VALUES (?, ?, ?)
+        INSERT INTO utenti (nome, email, password_hash, sesso)
+        VALUES (?, ?, ?, ?)
         """,
-        (nome, email, password_hash),
+        (nome, email, password_hash, sesso),
     )
     conn.commit()
     return cursor.lastrowid
@@ -481,13 +488,20 @@ def cerca_alimenti(conn: sqlite3.Connection, keyword: str) -> list[dict]:
     return results
 
 
-def calcola_micronutrienti_lista(conn: sqlite3.Connection, alimenti_richiesti: list) -> dict[str, float]:
+def calcola_micronutrienti_lista(
+    conn: sqlite3.Connection,
+    alimenti_richiesti: list,
+    sesso_utente: str,
+) -> dict[str, dict[str, float]]:
     """
     Calcola i micronutrienti totali per una lista di alimenti/grammature
-    senza persistere la dieta.
+    e li confronta con i target LARN in base al sesso dell'utente.
     """
     cursor = conn.cursor()
     totali: dict[str, float] = {}
+    sesso = (sesso_utente or "M").strip().upper()
+    if sesso not in {"M", "F"}:
+        sesso = "M"
 
     for alimento in alimenti_richiesti:
         if isinstance(alimento, dict):
@@ -517,6 +531,8 @@ def calcola_micronutrienti_lista(conn: sqlite3.Connection, alimenti_richiesti: l
               AND nutriente NOT LIKE 'Proteine%'
               AND nutriente NOT LIKE 'Lipidi%'
               AND nutriente NOT LIKE 'Carboidrati%'
+              AND nutriente NOT LIKE 'Acqua%'
+              AND nutriente NOT LIKE 'Alcol%'
             """,
             (codice_alimento,),
         )
@@ -526,4 +542,22 @@ def calcola_micronutrienti_lista(conn: sqlite3.Connection, alimenti_richiesti: l
             valore = _to_float_value(valore_100g) * ratio
             totali[nutriente] = totali.get(nutriente, 0.0) + valore
 
-    return {k: totali[k] for k in sorted(totali)}
+    risultati: dict[str, dict[str, float]] = {}
+    for nutriente in sorted(totali):
+        assunto = float(totali[nutriente])
+        target = 0.0
+        percentuale = 0.0
+
+        larn_by_sex = LARN_DICT.get(nutriente)
+        if larn_by_sex:
+            target = float(larn_by_sex.get(sesso, 0.0) or 0.0)
+            if target > 0:
+                percentuale = (assunto / target) * 100.0
+
+        risultati[nutriente] = {
+            "assunto": assunto,
+            "target": target,
+            "percentuale": percentuale,
+        }
+
+    return risultati

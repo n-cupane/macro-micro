@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import api, {
   aggiornaDietaCompleta,
   calcolaMicroGiornalieri,
@@ -61,6 +63,21 @@ function mealTotals(meal) {
 
 function buildInitialWeekPlan() {
   return DAY_NAMES.map(() => ({ meals: [] }));
+}
+
+function extractUnitFromNutrientName(nutriente) {
+  const match = String(nutriente || "").match(/\(([^)]+)\)/);
+  return match ? match[1] : "";
+}
+
+function getMicroProgressColor(percentuale) {
+  if (percentuale < 50) {
+    return { className: "bg-red-500", color: "#ef4444" };
+  }
+  if (percentuale < 90) {
+    return { className: "bg-yellow-500", color: "#eab308" };
+  }
+  return { className: "bg-green-500", color: "#22c55e" };
 }
 
 function DietBuilder() {
@@ -384,8 +401,77 @@ function DietBuilder() {
     }
   };
 
+  const esportaPDF = () => {
+    const doc = new jsPDF();
+
+    const spesaAggregata = weekPlan.reduce((acc, day) => {
+      day.meals.forEach((meal) => {
+        meal.foods.forEach((food) => {
+          const nome = food?.name?.trim() || "Alimento senza nome";
+          const grammi = Number(food?.grams || 0);
+          if (grammi > 0) {
+            acc[nome] = (acc[nome] || 0) + grammi;
+          }
+        });
+      });
+      return acc;
+    }, {});
+
+    const spesaRows = Object.entries(spesaAggregata)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([nome, grammi]) => [nome, Math.round(Number(grammi)).toString()]);
+
+    let currentY = 18;
+    doc.setFontSize(16);
+    doc.text(`Pianificazione Settimanale - ${dietName || "Dieta"}`, 14, currentY);
+    currentY += 8;
+
+    weekPlan.forEach((day, index) => {
+      const mealsConAlimenti = day.meals.filter((meal) => meal.foods.length > 0);
+      if (mealsConAlimenti.length === 0) {
+        return;
+      }
+
+      if (currentY > 260) {
+        doc.addPage();
+        currentY = 18;
+      }
+
+      doc.setFontSize(13);
+      doc.text(DAY_NAMES[index], 14, currentY);
+
+      const body = mealsConAlimenti.map((meal) => [
+        meal.name || "Pasto",
+        meal.foods.map((f) => `${f.name} - ${f.grams}g`).join("\n"),
+      ]);
+
+      autoTable(doc, {
+        startY: currentY + 3,
+        head: [["Pasto", "Alimenti"]],
+        body,
+        styles: { fontSize: 10, cellPadding: 2 },
+        headStyles: { fillColor: [15, 118, 110] },
+      });
+
+      currentY = (doc.lastAutoTable?.finalY || currentY + 20) + 8;
+    });
+
+    doc.addPage();
+    doc.setFontSize(16);
+    doc.text("Lista della Spesa Settimanale", 14, 18);
+    autoTable(doc, {
+      startY: 24,
+      head: [["Alimento", "Quantita Totale (g)"]],
+      body: spesaRows,
+      styles: { fontSize: 10, cellPadding: 2 },
+      headStyles: { fillColor: [15, 23, 42] },
+    });
+
+    doc.save(`Dieta_${dietName || "Export"}.pdf`);
+  };
+
   const openMicroOverlay = async () => {
-    const alimenti = activeMeals.flatMap((meal) =>
+    const listaAlimenti = activeMeals.flatMap((meal) =>
       meal.foods
         .filter((food) => food.codice_alimento && Number(food.grams) > 0)
         .map((food) => ({
@@ -394,17 +480,16 @@ function DietBuilder() {
         })),
     );
 
-    if (alimenti.length === 0) {
-      alert("Nessun alimento in questo giorno");
+    if (listaAlimenti.length === 0) {
       return;
     }
 
-    setShowMicroOverlay(true);
     setIsMicroLoading(true);
+    setShowMicroOverlay(true);
     setMicroData(null);
 
     try {
-      const response = await calcolaMicroGiornalieri(alimenti);
+      const response = await calcolaMicroGiornalieri({ alimenti: listaAlimenti });
       setMicroData(response.data || {});
     } catch (_err) {
       setMicroData(null);
@@ -437,6 +522,9 @@ function DietBuilder() {
               >
                 {isSaving ? "Salvataggio..." : isSaved ? "✅ Salvato!" : "Salva Dieta"}
               </button>
+              <button type="button" className="btn-secondary" onClick={esportaPDF}>
+                Esporta PDF
+              </button>
             </div>
             <input
               id="diet-name"
@@ -452,19 +540,21 @@ function DietBuilder() {
             <span>Grassi: {dailyTotals.fat.toFixed(1)}g</span>
           </div>
         </div>
-        <div className="diet-builder__chart-wrap">
+        <div
+          className="diet-builder__chart-wrap diet-builder__chart-box--clickable"
+          onClick={openMicroOverlay}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openMicroOverlay();
+            }
+          }}
+        >
           {hasMacroData ? (
             <div
-              className="diet-builder__chart-box diet-builder__chart-box--clickable"
-              role="button"
-              tabIndex={0}
-              onClick={openMicroOverlay}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openMicroOverlay();
-                }
-              }}
+              className="diet-builder__chart-box"
             >
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -486,16 +576,7 @@ function DietBuilder() {
             </div>
           ) : (
             <div
-              className="diet-builder__chart-empty diet-builder__chart-box--clickable"
-              onClick={openMicroOverlay}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openMicroOverlay();
-                }
-              }}
-              role="button"
-              tabIndex={0}
+              className="diet-builder__chart-empty"
             >
               Nessun dato
             </div>
@@ -723,9 +804,13 @@ function DietBuilder() {
       )}
 
       {showMicroOverlay && (
-        <div className="diet-builder__micro-overlay" role="dialog" aria-modal="true">
+        <div
+          className="diet-builder__micro-overlay fixed inset-0 bg-white z-50 overflow-y-auto p-4 sm:p-8 flex flex-col"
+          role="dialog"
+          aria-modal="true"
+        >
           <div className="diet-builder__micro-header">
-            <h2>Analisi Micronutrienti - {DAY_NAMES[activeDay]}</h2>
+            <h2>Analisi Micronutrienti</h2>
             <button
               type="button"
               className="diet-builder__micro-close"
@@ -744,16 +829,43 @@ function DietBuilder() {
 
           {!isMicroLoading && microData && (
             <div className="diet-builder__micro-grid">
-              {Object.keys(microData)
-                .sort((a, b) => a.localeCompare(b))
-                .map((nutriente) => (
-                  <div key={nutriente} className="diet-builder__micro-card">
-                    <span className="diet-builder__micro-name">{nutriente}</span>
-                    <strong className="diet-builder__micro-value">
-                      {Number(microData[nutriente] || 0).toFixed(2)}
-                    </strong>
-                  </div>
-                ))}
+              {Object.entries(microData)
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([nutriente, valori]) => {
+                  const assunto = Number(valori?.assunto || 0);
+                  const target = Number(valori?.target || 0);
+                  const percentuale = Number(valori?.percentuale || 0);
+                  const unit = extractUnitFromNutrientName(nutriente);
+                  const progressValue = Math.min(Math.max(percentuale, 0), 100);
+                  const color = getMicroProgressColor(percentuale);
+
+                  return (
+                    <div key={nutriente} className="diet-builder__micro-card">
+                      <div className="diet-builder__micro-row">
+                        <span className="diet-builder__micro-name">{nutriente}</span>
+                        <strong className="diet-builder__micro-value">
+                          {assunto.toFixed(2)} / {target.toFixed(2)}
+                          {unit ? ` ${unit}` : ""}
+                        </strong>
+                      </div>
+                      <div className="diet-builder__micro-progress">
+                        <div
+                          className={`diet-builder__micro-progress-bar ${color.className}`}
+                          style={{ width: `${progressValue}%`, backgroundColor: color.color }}
+                        />
+                      </div>
+                      <span className="diet-builder__micro-percent">
+                        {percentuale.toFixed(1)}%
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {!isMicroLoading && microData && Object.keys(microData).length === 0 && (
+            <div className="diet-builder__micro-loading">
+              <p>Nessun micronutriente disponibile per il calcolo.</p>
             </div>
           )}
         </div>

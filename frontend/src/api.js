@@ -36,8 +36,8 @@ export const eliminaDieta = (id) => {
   return api.delete(`/diete/${id}`);
 };
 
-export const calcolaMicroGiornalieri = (alimenti) => {
-  return api.post("/nutrizione/giornaliera/micro", { alimenti });
+export const calcolaMicroGiornalieri = (payload) => {
+  return api.post("/nutrizione/giornaliera/micro", payload);
 };
 
 export default api;

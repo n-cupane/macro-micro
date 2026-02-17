@@ -1,12 +1,21 @@
 from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class UtenteCreate(BaseModel):
     nome: str
     email: str
     password: str
+    sesso: str
+
+    @field_validator("sesso")
+    @classmethod
+    def validate_sesso(cls, value: str) -> str:
+        normalized = (value or "").strip().upper()
+        if normalized not in {"M", "F"}:
+            raise ValueError("sesso deve essere 'M' o 'F'")
+        return normalized
 
 
 class DietaCreate(BaseModel):
@@ -30,6 +39,11 @@ class AlimentoBulkCreate(BaseModel):
     grammi: int
 
 
+class AlimentoMicroRequest(BaseModel):
+    codice_alimento: str
+    grammi: float
+
+
 class PastoBulkCreate(BaseModel):
     nome_pasto: str
     giorno_settimana: int
@@ -43,4 +57,4 @@ class DietaCompletaCreate(BaseModel):
 
 
 class CalcoloMicroRequest(BaseModel):
-    alimenti: List[AlimentoBulkCreate]
+    alimenti: List[AlimentoMicroRequest]
