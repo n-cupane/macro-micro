@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
-import api, { aggiornaDietaCompleta, salvaDietaCompleta } from "../api";
+import api, {
+  aggiornaDietaCompleta,
+  calcolaMicroGiornalieri,
+  salvaDietaCompleta,
+} from "../api";
 import "./DietBuilder.css";
 
 const DAY_NAMES = [
@@ -78,6 +82,9 @@ function DietBuilder() {
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(id));
   const [saveError, setSaveError] = useState("");
+  const [showMicroOverlay, setShowMicroOverlay] = useState(false);
+  const [microData, setMicroData] = useState(null);
+  const [isMicroLoading, setIsMicroLoading] = useState(false);
 
   const activeMeals = weekPlan[activeDay].meals;
 
@@ -377,6 +384,36 @@ function DietBuilder() {
     }
   };
 
+  const openMicroOverlay = async () => {
+    const alimenti = activeMeals.flatMap((meal) =>
+      meal.foods
+        .filter((food) => food.codice_alimento && Number(food.grams) > 0)
+        .map((food) => ({
+          codice_alimento: food.codice_alimento,
+          grammi: Number(food.grams),
+        })),
+    );
+
+    if (alimenti.length === 0) {
+      alert("Nessun alimento in questo giorno");
+      return;
+    }
+
+    setShowMicroOverlay(true);
+    setIsMicroLoading(true);
+    setMicroData(null);
+
+    try {
+      const response = await calcolaMicroGiornalieri(alimenti);
+      setMicroData(response.data || {});
+    } catch (_err) {
+      setMicroData(null);
+      alert("Errore durante il calcolo dei micronutrienti");
+    } finally {
+      setIsMicroLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <section className="diet-builder">
@@ -417,7 +454,18 @@ function DietBuilder() {
         </div>
         <div className="diet-builder__chart-wrap">
           {hasMacroData ? (
-            <div className="diet-builder__chart-box">
+            <div
+              className="diet-builder__chart-box diet-builder__chart-box--clickable"
+              role="button"
+              tabIndex={0}
+              onClick={openMicroOverlay}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openMicroOverlay();
+                }
+              }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -437,7 +485,20 @@ function DietBuilder() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="diet-builder__chart-empty">Nessun dato</div>
+            <div
+              className="diet-builder__chart-empty diet-builder__chart-box--clickable"
+              onClick={openMicroOverlay}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openMicroOverlay();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              Nessun dato
+            </div>
           )}
         </div>
       </header>
@@ -658,6 +719,43 @@ function DietBuilder() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showMicroOverlay && (
+        <div className="diet-builder__micro-overlay" role="dialog" aria-modal="true">
+          <div className="diet-builder__micro-header">
+            <h2>Analisi Micronutrienti - {DAY_NAMES[activeDay]}</h2>
+            <button
+              type="button"
+              className="diet-builder__micro-close"
+              onClick={() => setShowMicroOverlay(false)}
+            >
+              Chiudi (X)
+            </button>
+          </div>
+
+          {isMicroLoading && (
+            <div className="diet-builder__micro-loading">
+              <div className="diet-builder__spinner" aria-hidden="true" />
+              <p>Calcolo micronutrienti in corso...</p>
+            </div>
+          )}
+
+          {!isMicroLoading && microData && (
+            <div className="diet-builder__micro-grid">
+              {Object.keys(microData)
+                .sort((a, b) => a.localeCompare(b))
+                .map((nutriente) => (
+                  <div key={nutriente} className="diet-builder__micro-card">
+                    <span className="diet-builder__micro-name">{nutriente}</span>
+                    <strong className="diet-builder__micro-value">
+                      {Number(microData[nutriente] || 0).toFixed(2)}
+                    </strong>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
     </section>

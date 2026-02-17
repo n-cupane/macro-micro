@@ -40,3 +40,7 @@ class PastoBulkCreate(BaseModel):
 class DietaCompletaCreate(BaseModel):
     nome: str
     pasti: List[PastoBulkCreate]
+
+
+class CalcoloMicroRequest(BaseModel):
+    alimenti: List[AlimentoBulkCreate]

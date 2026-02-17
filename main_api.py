@@ -13,6 +13,7 @@ from crud_manager import (
     aggiungi_alimento_a_pasto,
     aggiungi_pasto,
     aggiorna_dieta_completa,
+    calcola_micronutrienti_lista,
     cerca_alimenti,
     copia_giorno_dieta,
     crea_dieta,
@@ -24,7 +25,14 @@ from crud_manager import (
 )
 from database import setup_database
 from security import ALGORITHM, SECRET_KEY, crea_access_token, hash_password, verify_password
-from schemas import AlimentoPastoCreate, DietaCompletaCreate, DietaCreate, PastoCreate, UtenteCreate
+from schemas import (
+    AlimentoPastoCreate,
+    CalcoloMicroRequest,
+    DietaCompletaCreate,
+    DietaCreate,
+    PastoCreate,
+    UtenteCreate,
+)
 
 app = FastAPI(title="Macro Micro API")
 app.add_middleware(
@@ -246,6 +254,16 @@ def nutrizione_pasto_endpoint(
         "grassi": totali["lipidi_g"],
         "carboidrati": totali["carboidrati_g"],
     }
+
+
+@app.post("/api/nutrizione/giornaliera/micro")
+def nutrizione_giornaliera_micro_endpoint(
+    payload: CalcoloMicroRequest,
+    conn: sqlite3.Connection = Depends(get_db),
+    current_user: dict = Depends(get_utente_corrente),
+) -> dict[str, float]:
+    _ = current_user
+    return calcola_micronutrienti_lista(conn, payload.alimenti)
 
 
 @app.post("/api/token")

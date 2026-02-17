@@ -479,3 +479,51 @@ def cerca_alimenti(conn: sqlite3.Connection, keyword: str) -> list[dict]:
         )
 
     return results
+
+
+def calcola_micronutrienti_lista(conn: sqlite3.Connection, alimenti_richiesti: list) -> dict[str, float]:
+    """
+    Calcola i micronutrienti totali per una lista di alimenti/grammature
+    senza persistere la dieta.
+    """
+    cursor = conn.cursor()
+    totali: dict[str, float] = {}
+
+    for alimento in alimenti_richiesti:
+        if isinstance(alimento, dict):
+            codice_alimento = alimento.get("codice_alimento")
+            grammi = alimento.get("grammi", 0)
+        else:
+            codice_alimento = getattr(alimento, "codice_alimento", None)
+            grammi = getattr(alimento, "grammi", 0)
+
+        if not codice_alimento:
+            continue
+
+        try:
+            grammi_float = float(grammi or 0)
+        except (TypeError, ValueError):
+            grammi_float = 0.0
+        if grammi_float <= 0:
+            continue
+
+        ratio = grammi_float / 100.0
+        cursor.execute(
+            """
+            SELECT nutriente, valore_100g
+            FROM valori_nutrizionali
+            WHERE codice_alimento = ?
+              AND nutriente NOT LIKE 'Energia%'
+              AND nutriente NOT LIKE 'Proteine%'
+              AND nutriente NOT LIKE 'Lipidi%'
+              AND nutriente NOT LIKE 'Carboidrati%'
+            """,
+            (codice_alimento,),
+        )
+        rows = cursor.fetchall()
+
+        for nutriente, valore_100g in rows:
+            valore = _to_float_value(valore_100g) * ratio
+            totali[nutriente] = totali.get(nutriente, 0.0) + valore
+
+    return {k: totali[k] for k in sorted(totali)}
