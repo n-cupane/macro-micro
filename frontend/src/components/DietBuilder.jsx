@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useNavigate, useParams } from "react-router-dom";
 import api, { aggiornaDietaCompleta, salvaDietaCompleta } from "../api";
 import "./DietBuilder.css";
@@ -94,6 +95,13 @@ function DietBuilder() {
       { kcal: 0, pro: 0, carb: 0, fat: 0 },
     );
   }, [activeMeals]);
+
+  const macroData = [
+    { name: "Proteine", value: Number(dailyTotals.pro.toFixed(1)), color: "#3b82f6" },
+    { name: "Carboidrati", value: Number(dailyTotals.carb.toFixed(1)), color: "#ef4444" },
+    { name: "Grassi", value: Number(dailyTotals.fat.toFixed(1)), color: "#eab308" },
+  ];
+  const hasMacroData = macroData.some((item) => item.value > 0);
 
   const previewMacros = useMemo(() => {
     if (!selectedFood || Number(foodGrams) <= 0) {
@@ -380,30 +388,57 @@ function DietBuilder() {
   return (
     <section className="diet-builder">
       <header className="diet-builder__header">
-        <div className="diet-builder__name">
-          <div className="diet-builder__title-row">
-            <label htmlFor="diet-name">Nome della Dieta</label>
-            <button
-              type="button"
-              className="btn-primary btn-save-diet"
-              onClick={handleSalvaDieta}
-              disabled={isSaving || isSaved}
-            >
-              {isSaving ? "Salvataggio..." : isSaved ? "Saved!" : "Salva Dieta"}
-            </button>
+        <div className="diet-builder__header-left">
+          <div className="diet-builder__name">
+            <div className="diet-builder__title-row">
+              <label htmlFor="diet-name">Nome della Dieta</label>
+              <button
+                type="button"
+                className="btn-primary btn-save-diet"
+                onClick={handleSalvaDieta}
+                disabled={isSaving || isSaved}
+              >
+                {isSaving ? "Salvataggio..." : isSaved ? "✅ Salvato!" : "Salva Dieta"}
+              </button>
+            </div>
+            <input
+              id="diet-name"
+              value={dietName}
+              onChange={(e) => setDietName(e.target.value)}
+              placeholder="Inserisci un nome"
+            />
           </div>
-          <input
-            id="diet-name"
-            value={dietName}
-            onChange={(e) => setDietName(e.target.value)}
-            placeholder="Inserisci un nome"
-          />
+          <div className="diet-builder__totals">
+            <span>Kcal: {dailyTotals.kcal.toFixed(0)}</span>
+            <span>Pro: {dailyTotals.pro.toFixed(1)}g</span>
+            <span>Carbo: {dailyTotals.carb.toFixed(1)}g</span>
+            <span>Grassi: {dailyTotals.fat.toFixed(1)}g</span>
+          </div>
         </div>
-        <div className="diet-builder__totals">
-          <span>Kcal: {dailyTotals.kcal.toFixed(0)}</span>
-          <span>Pro: {dailyTotals.pro.toFixed(1)}g</span>
-          <span>Carbo: {dailyTotals.carb.toFixed(1)}g</span>
-          <span>Grassi: {dailyTotals.fat.toFixed(1)}g</span>
+        <div className="diet-builder__chart-wrap">
+          {hasMacroData ? (
+            <div className="diet-builder__chart-box">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={macroData}
+                    innerRadius={50}
+                    outerRadius={70}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {macroData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `${value} g`} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="diet-builder__chart-empty">Nessun dato</div>
+          )}
         </div>
       </header>
       {saveError && <p className="diet-builder__save-error">{saveError}</p>}
@@ -461,7 +496,7 @@ function DietBuilder() {
                                   onKeyDown={(e) => e.stopPropagation()}
                                   title="Trascina per riordinare"
                                 >
-                                  ⋮⋮
+                                  ::
                                 </span>
                                 <input
                                   type="text"

@@ -17,11 +17,18 @@
 .diet-builder__header {
   display: flex;
   gap: 1rem;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid #e8edf3;
   background: linear-gradient(120deg, #f8fbff 0%, #edf4f7 100%);
+}
+
+.diet-builder__header-left {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .diet-builder__save-error {
@@ -71,6 +78,31 @@
   font-size: 0.85rem;
   padding: 0.4rem 0.65rem;
   border-radius: 999px;
+}
+
+.diet-builder__chart-wrap {
+  flex: 0 0 auto;
+  width: 160px;
+  height: 160px;
+  display: grid;
+  place-items: center;
+}
+
+.diet-builder__chart-box {
+  width: 160px;
+  height: 160px;
+}
+
+.diet-builder__chart-empty {
+  width: 130px;
+  height: 130px;
+  border-radius: 999px;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+  font-size: 0.85rem;
+  display: grid;
+  place-items: center;
+  background: #f8fafc;
 }
 
 .diet-builder__tabs {
@@ -404,6 +436,12 @@
   .diet-builder__header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .diet-builder__chart-wrap {
+    width: 100%;
+    height: 140px;
+    justify-items: start;
   }
 
   .diet-builder__name input {
