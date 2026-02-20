@@ -72,12 +72,8 @@
   gap: 0.6rem;
 }
 
-.diet-builder__totals span {
-  background: #0f766e;
-  color: #ffffff;
+.diet-builder__totals .macro-pill {
   font-size: 0.85rem;
-  padding: 0.4rem 0.65rem;
-  border-radius: 999px;
 }
 
 .diet-builder__chart-wrap {

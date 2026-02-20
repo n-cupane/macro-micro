@@ -534,10 +534,10 @@ function DietBuilder() {
             />
           </div>
           <div className="diet-builder__totals">
-            <span>Kcal: {dailyTotals.kcal.toFixed(0)}</span>
-            <span>Pro: {dailyTotals.pro.toFixed(1)}g</span>
-            <span>Carbo: {dailyTotals.carb.toFixed(1)}g</span>
-            <span>Grassi: {dailyTotals.fat.toFixed(1)}g</span>
+            <span className="macro-pill macro-pill--kcal">Kcal {dailyTotals.kcal.toFixed(0)}</span>
+            <span className="macro-pill macro-pill--pro">P {dailyTotals.pro.toFixed(1)}</span>
+            <span className="macro-pill macro-pill--carb">C {dailyTotals.carb.toFixed(1)}</span>
+            <span className="macro-pill macro-pill--fat">G {dailyTotals.fat.toFixed(1)}</span>
           </div>
         </div>
         <div
